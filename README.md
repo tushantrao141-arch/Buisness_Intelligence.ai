@@ -31,6 +31,26 @@ A review score is a signal for a human, not proof of wrongdoing. The app never t
 | Actions | Persona-permitted playbook steps |
 | Governance | Quality, evaluation, security, runtime |
 
+## Run with Docker
+
+```bash
+# Build and run with Docker Compose
+docker compose up --build -d
+```
+
+Open [http://localhost:8501](http://localhost:8501) in your browser.
+
+Or use one-click scripts:
+- **Windows (PowerShell):** `.\run_docker.ps1`
+- **Linux/macOS:** `./run_docker.sh`
+
+To run tests in Docker:
+```bash
+docker compose run --rm silentsignal-test
+```
+
+See [Docker Deployment Guide](docs/DOCKER.md) for full instructions.
+
 ## Run locally (Windows)
 
 ```powershell
@@ -97,6 +117,7 @@ Ground truth is read only by `src/evaluation.py` after analytics finish.
 ## Docs
 
 - [Owner handbook](docs/OWNER_HANDBOOK.md)
+- [Docker deployment](docs/DOCKER.md)
 - [KPI formulas](docs/KPI_SPEC.md)
 - [Demo script](docs/DEMO_SCRIPT.md)
 - [Evaluation](docs/EVALUATION_REPORT.md)
