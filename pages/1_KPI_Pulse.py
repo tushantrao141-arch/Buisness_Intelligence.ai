@@ -5,22 +5,38 @@ from __future__ import annotations
 import plotly.express as px
 import streamlit as st
 
-from src.ui import configure_page, format_kpi_value, get_demo_runtime, render_project_banner, render_sidebar
+from src.ui import (
+    configure_page,
+    format_kpi_value,
+    get_demo_runtime,
+    render_page_header,
+    render_project_banner,
+    render_section_header,
+    render_sidebar,
+)
 
 
 configure_page("KPI Pulse", "📊")
 bundle, user, region = render_sidebar()
 runtime = get_demo_runtime()
 
-st.markdown('<div class="ss-eyebrow">GOVERNED MONITORING</div>', unsafe_allow_html=True)
-st.title("KPI Pulse")
-st.write("Prioritised movements combine a governed baseline, business materiality, and evidence readiness.")
+render_page_header(
+    "Governed monitoring",
+    "KPI Pulse",
+    "Prioritised movements combine a governed baseline, business materiality, and evidence readiness.",
+    f"{region} portfolio",
+)
 render_project_banner()
 
 kpi_by_id = {kpi.id: kpi for kpi in bundle.kpis}
 scope = runtime.analysis.movements.loc[runtime.analysis.movements["region"].eq(region)].copy()
 scope["name"] = scope["kpi_id"].map(lambda value: kpi_by_id[value].name)
 
+render_section_header(
+    "Live KPI portfolio",
+    "Five governed measures, one consistent regional decision scope.",
+    "Current window",
+)
 metric_columns = st.columns(5)
 for column, movement in zip(metric_columns, scope.sort_values("name").itertuples(index=False)):
     column.metric(
@@ -31,6 +47,11 @@ for column, movement in zip(metric_columns, scope.sort_values("name").itertuples
         delta_color="inverse" if movement.kpi_id == "case_sla_risk" else "normal",
     )
 
+render_section_header(
+    "Trend and materiality",
+    "Inspect the history, expected baseline, and business-impact gate together.",
+    "Movement detail",
+)
 selected_kpi = st.selectbox(
     "Trend to inspect",
     options=list(kpi_by_id),
@@ -45,8 +66,23 @@ left, right = st.columns([4, 1])
 with left:
     figure = px.line(history, x="date", y="value", markers=False, template="plotly_white")
     figure.add_hline(y=movement.expected, line_dash="dash", line_color="#df7a54", annotation_text="28-day baseline")
-    figure.update_traces(line_color="#6652e8", line_width=3, fill="tozeroy", fillcolor="rgba(102,82,232,.08)")
-    figure.update_layout(height=350, margin=dict(l=10, r=10, t=15, b=10), yaxis_title=kpi_by_id[selected_kpi].unit, xaxis_title=None)
+    figure.update_traces(
+        line_color="#6558e8",
+        line_width=3.2,
+        fill="tozeroy",
+        fillcolor="rgba(101,88,232,.09)",
+        hovertemplate="%{x|%d %b %Y}<br><b>%{y:,.2f}</b><extra></extra>",
+    )
+    figure.update_layout(
+        height=370,
+        margin=dict(l=16, r=16, t=24, b=16),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Segoe UI, sans-serif", color="#5f6b80"),
+        hoverlabel=dict(bgcolor="#102036", font_color="white", bordercolor="#102036"),
+        yaxis=dict(title=kpi_by_id[selected_kpi].unit, gridcolor="#edf0f5", zeroline=False),
+        xaxis=dict(title=None, gridcolor="#f4f6f9"),
+    )
     st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 with right:
     st.metric("Impact score", f"{movement.impact_score:.0f}/100")
@@ -54,7 +90,11 @@ with right:
     st.metric("Material", "Yes" if movement.material else "No")
     st.caption(movement.baseline_method)
 
-st.markdown("### Movement queue")
+render_section_header(
+    "Movement queue",
+    "A comparable view of expected value, unusualness, impact, and materiality.",
+    "Prioritisation",
+)
 queue = scope[["name", "actual", "expected", "delta_pct", "z_score", "impact_score", "material"]].copy()
 queue.columns = ["KPI", "Actual", "Expected", "Δ %", "Z-score", "Impact", "Material"]
 st.dataframe(

@@ -10,16 +10,28 @@ import streamlit as st
 from src.evidence import build_evidence_packet, llm_payload
 from src.narrative import narrative_from_packet
 from src.security import mask_identifier
-from src.ui import configure_page, decision_chip, get_demo_runtime, render_project_banner, render_sidebar
+from src.ui import (
+    configure_page,
+    decision_chip,
+    get_demo_runtime,
+    render_decision_banner,
+    render_page_header,
+    render_project_banner,
+    render_section_header,
+    render_sidebar,
+)
 
 
 configure_page("SilentSignal Investigation", "🔗")
 bundle, user, region = render_sidebar()
 runtime = get_demo_runtime()
 
-st.markdown('<div class="ss-eyebrow">PATTERN INVESTIGATION</div>', unsafe_allow_html=True)
-st.title("SilentSignal investigation")
-st.write("Review connected activity, evidence quality, alternative hypotheses, and explicit uncertainty as separate concepts.")
+render_page_header(
+    "Pattern investigation",
+    "SilentSignal investigation",
+    "Review connected activity, evidence quality, alternative hypotheses, and explicit uncertainty as separate concepts.",
+    f"Authorised · {region}",
+)
 render_project_banner()
 
 findings = runtime.analysis.findings.loc[runtime.analysis.findings["region"].eq(region)]
@@ -27,6 +39,11 @@ if findings.empty:
     st.success("No active findings for this region.")
     st.stop()
 
+render_section_header(
+    "Select an investigation focus",
+    "Only findings inside the current persona and regional entitlement are available.",
+    "Case context",
+)
 finding_id = st.selectbox(
     "Finding",
     options=findings["finding_id"].tolist(),
@@ -45,13 +62,29 @@ with right:
     st.metric("Pattern strength", f"{finding['pattern_strength']:.0%}")
 
 if finding["decision"] == "ABSTAIN":
-    st.warning(f"High-impact escalation is blocked. {finding['requested_information']}")
+    render_decision_banner(
+        "ABSTAIN",
+        "Evidence gate active",
+        f"High-impact escalation is blocked. {finding['requested_information']}",
+    )
 elif finding["decision"] == "ALERT":
-    st.error("Priority review signal. This is not a conclusion of wrongdoing.")
+    render_decision_banner(
+        "ALERT",
+        "Priority human review",
+        "The connected risk signal is material; it is not a conclusion of wrongdoing.",
+    )
 else:
-    st.info("Monitor or peer-based review only; the evidence does not support a high-impact action.")
+    render_decision_banner(
+        str(finding["decision"]),
+        "Governed monitoring path",
+        "Current evidence does not support a high-impact action.",
+    )
 
-st.markdown("### Persona-specific briefing")
+render_section_header(
+    "Persona-specific briefing",
+    "Language is rendered from the validated evidence packet after access and redaction checks.",
+    "Decision narrative",
+)
 st.write(narrative_from_packet(packet))
 
 tab_graph, tab_evidence, tab_transactions, tab_trace = st.tabs(["Relationship view", "Evidence packet", "Activity", "Execution trace"])
@@ -88,7 +121,17 @@ with tab_graph:
             marker=dict(size=24, color="#6652e8", line=dict(width=3, color="#e9e6ff")),
         )
         figure = go.Figure([edge_trace, node_trace])
-        figure.update_layout(template="plotly_white", height=470, margin=dict(l=10, r=10, t=10, b=10), showlegend=False, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        figure.update_layout(
+            template="plotly_white",
+            height=490,
+            margin=dict(l=20, r=20, t=25, b=20),
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            hoverlabel=dict(bgcolor="#102036", font_color="white", bordercolor="#102036"),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+        )
         st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
         st.caption("Nodes are masked synthetic accounts. Edges represent shared governed identifiers or beneficiaries; no graph-neural model is used.")
     else:

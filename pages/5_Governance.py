@@ -4,13 +4,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import plotly.express as px
 import streamlit as st
 
 from src.config import get_user
 from src.evaluation import evaluation_summary
 from src.security import check_access
 from src.storage import read_events, record_feedback, record_security
-from src.ui import configure_page, get_demo_runtime, render_project_banner, render_sidebar
+from src.ui import (
+    configure_page,
+    get_demo_runtime,
+    render_decision_banner,
+    render_page_header,
+    render_project_banner,
+    render_section_header,
+    render_sidebar,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -19,11 +28,19 @@ bundle, user, region = render_sidebar()
 runtime = get_demo_runtime()
 summary = evaluation_summary(runtime.evaluation)
 
-st.markdown('<div class="ss-eyebrow">CONTROL PLANE</div>', unsafe_allow_html=True)
-st.title("Governance and evaluation")
-st.write("Calculated controls make freshness, quality, security, abstention, evaluation, and runtime behaviour inspectable.")
+render_page_header(
+    "Control plane",
+    "Governance and evaluation",
+    "Calculated controls make freshness, quality, security, abstention, evaluation, and runtime behaviour inspectable.",
+    "Audit-ready",
+)
 render_project_banner()
 
+render_section_header(
+    "Control posture",
+    "A compact view of source readiness, scenario assurance, and model usage.",
+    "Live assurance",
+)
 columns = st.columns(4)
 columns[0].metric("Source freshness", f"{runtime.data.source_freshness['status'].eq('Fresh').mean():.0%}")
 columns[1].metric("Critical DQ failures", int(runtime.data.quality.loc[runtime.data.quality["severity"].eq("critical"), "affected_rows"].sum()))
@@ -53,6 +70,32 @@ with tab_eval:
 with tab_benchmark:
     st.markdown("#### Four-method baseline comparison")
     benchmark = runtime.benchmark.copy()
+    metric_view = benchmark.melt(
+        id_vars=["method"],
+        value_vars=["precision", "recall", "f1"],
+        var_name="metric",
+        value_name="score",
+    )
+    figure = px.bar(
+        metric_view,
+        x="method",
+        y="score",
+        color="metric",
+        barmode="group",
+        color_discrete_map={"precision": "#6558e8", "recall": "#28b99a", "f1": "#e7ad2f"},
+    )
+    figure.update_layout(
+        height=360,
+        margin=dict(l=20, r=20, t=28, b=65),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Segoe UI, sans-serif", color="#5f6b80"),
+        legend=dict(title=None, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis=dict(title="Score", range=[0, 1.05], tickformat=".0%", gridcolor="#edf0f5", zeroline=False),
+        xaxis=dict(title=None),
+    )
+    figure.update_traces(hovertemplate="%{x}<br>%{data.name}: <b>%{y:.0%}</b><extra></extra>")
+    st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
     st.dataframe(
         benchmark,
         width="stretch",
@@ -80,7 +123,11 @@ with tab_security:
     if decision.allowed:
         st.error("Unexpectedly allowed")
     else:
-        st.success(f"ACCESS DENIED · {decision.reason}")
+        render_decision_banner(
+            "ALERT",
+            "Access denied before evidence construction",
+            decision.reason,
+        )
     if st.button("Record security test"):
         record_security(PROJECT_ROOT, west_user.id, "NORTH", "ACCESS_DENIED" if not decision.allowed else "ALLOWED", decision.reason)
         st.success("Security event recorded without constructing restricted evidence.")

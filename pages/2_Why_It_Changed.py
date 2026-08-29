@@ -5,7 +5,15 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.ui import configure_page, format_kpi_value, get_demo_runtime, render_project_banner, render_sidebar
+from src.ui import (
+    configure_page,
+    format_kpi_value,
+    get_demo_runtime,
+    render_page_header,
+    render_project_banner,
+    render_section_header,
+    render_sidebar,
+)
 
 
 configure_page("Why It Changed", "🧭")
@@ -13,12 +21,20 @@ bundle, user, region = render_sidebar()
 runtime = get_demo_runtime()
 kpi_by_id = {kpi.id: kpi for kpi in bundle.kpis}
 
-st.markdown('<div class="ss-eyebrow">EXPLANATION</div>', unsafe_allow_html=True)
-st.title("Why it changed")
-st.write("Observed movement is decomposed into traceable segment contributions. Alternative explanations remain visible.")
+render_page_header(
+    "Evidence-backed explanation",
+    "Why it changed",
+    "Observed movement is decomposed into traceable contributions while alternatives and unexplained residual remain visible.",
+    f"{region} explanation",
+)
 render_project_banner()
 
 available = ["near_threshold_value_ratio", "linked_pattern_exposure", "high_risk_cluster_count"]
+render_section_header(
+    "Choose the movement to explain",
+    "The narrative below is generated from calculated evidence—not free-form model arithmetic.",
+    "Analytical scope",
+)
 selected_kpi = st.selectbox("KPI", available, format_func=lambda kpi_id: kpi_by_id[kpi_id].name)
 movement = runtime.analysis.movements.loc[
     runtime.analysis.movements["region"].eq(region) & runtime.analysis.movements["kpi_id"].eq(selected_kpi)
@@ -33,6 +49,11 @@ d.metric("Impact", f"{movement.impact_score:.0f}/100")
 drivers = runtime.analysis.drivers.loc[
     runtime.analysis.drivers["region"].eq(region) & runtime.analysis.drivers["kpi_id"].eq(selected_kpi)
 ].copy()
+render_section_header(
+    "Contribution bridge",
+    "Ranked leaves reconcile the governed baseline to the observed KPI value.",
+    "Driver analysis",
+)
 if drivers.empty:
     st.info("No material driver contribution is available for this scope.")
 else:
@@ -60,7 +81,17 @@ else:
             totals={"marker": {"color": "#17213a"}},
         )
     )
-    figure.update_layout(template="plotly_white", height=480, margin=dict(l=10, r=10, t=20, b=80), yaxis_title=f"Contribution ({kpi_by_id[selected_kpi].unit})", xaxis_title=None)
+    figure.update_layout(
+        template="plotly_white",
+        height=500,
+        margin=dict(l=18, r=18, t=25, b=90),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Segoe UI, sans-serif", color="#5f6b80"),
+        hoverlabel=dict(bgcolor="#102036", font_color="white", bordercolor="#102036"),
+        yaxis=dict(title=f"Contribution ({kpi_by_id[selected_kpi].unit})", gridcolor="#edf0f5", zeroline=False),
+        xaxis=dict(title=None),
+    )
     st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 
     detail = ranked.head(15)[["driver", "actual", "expected", "contribution", "contribution_pct", "unexplained"]]
@@ -80,7 +111,11 @@ else:
     )
     st.success(f"Reconciliation passed: explained {drivers['explained_total'].iloc[0]:,.4f} of {drivers['movement_total'].iloc[0]:,.4f}; unexplained {drivers['unexplained'].iloc[0]:.8f}.")
 
-st.markdown("### Supported alternatives and limits")
+render_section_header(
+    "Supported alternatives and limits",
+    "Contradicting evidence stays visible so association is not mistaken for causation.",
+    "Challenge the signal",
+)
 alternatives = runtime.analysis.findings.loc[
     runtime.analysis.findings["region"].eq(region)
     & runtime.analysis.findings["finding_type"].isin(["Alternative hypothesis", "Evidence gap", "Sparse history"])
