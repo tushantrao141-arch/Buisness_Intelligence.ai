@@ -1,0 +1,30 @@
+project:
+  name: SilentSignal
+  version: 1.0.0
+  currency: INR
+  timezone: UTC
+  synthetic_data_only: true
+
+analysis:
+  illustrative_threshold_inr: 1000000
+  near_threshold_lower_ratio: 0.80
+  movement_history_days: 28
+  sparse_history_days: 28
+  sla_risk_horizon_hours: 24
+  abstention_confidence_below: 0.60
+
+freshness_sla_hours:
+  transactions: 1
+  kyc: 30
+  cases: 6
+
+security:
+  mask_account_suffix_length: 4
+  send_raw_identifiers_to_llm: false
+
+llm:
+  enabled: false
+  provider: openai
+  model: gpt-5.6-luna
+  structured_output: true
+  deterministic_fallback: true

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-20T12:00:00+00:00",
+  "sources": {
+    "transactions": {
+      "last_refresh": "2026-08-20T11:48:00+00:00",
+      "expected_refresh_sla_hours": 1,
+      "row_count": 16917
+    },
+    "kyc": {
+      "last_refresh": "2026-08-20T08:00:00+00:00",
+      "expected_refresh_sla_hours": 30,
+      "row_count": 339
+    },
+    "cases": {
+      "last_refresh": "2026-08-20T10:00:00+00:00",
+      "expected_refresh_sla_hours": 6,
+      "row_count": 124
+    }
+  }
+}

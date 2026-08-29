@@ -1,0 +1,6 @@
+scenario_id,name,region,expected_outcome,entity_ids,expected_driver_dimensions,description
+S1,Strong connected pattern,WEST,ALERT,"[""W_SIG_01"", ""W_SIG_02"", ""W_SIG_03"", ""W_SIG_04"", ""W_SIG_05"", ""W_SIG_06"", ""W_SIG_07"", ""W_SIG_08""]","[""region"", ""branch_id"", ""account_age_band"", ""cluster_label""]",Connected new accounts with repeated near-threshold cash activity.
+S2,Legitimate seasonal activity,EAST,MONITOR,"[""E_SEASONAL_01""]","[""business_type""]",Fresh KYC and documented turnover support a seasonal alternative.
+S3,Insufficient evidence,NORTH,ABSTAIN,"[""N_GAP_01"", ""N_GAP_02"", ""N_GAP_03"", ""N_GAP_04""]","[""kyc_fresh"", ""mapping_complete""]",Stale KYC and missing mappings require more information.
+S4,Sparse-history channel,SOUTH,PEER_BASED,"[""S_NEW_01"", ""S_NEW_02"", ""S_NEW_03"", ""S_NEW_04"", ""S_NEW_05"", ""S_NEW_06""]","[""channel""]",NEW_DEPOSIT has only fourteen days of history.
+S5,Unauthorised region,NORTH,ACCESS_DENIED,[],[],A WEST investigator requests NORTH details.

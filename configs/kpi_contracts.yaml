@@ -1,0 +1,71 @@
+kpis:
+  - id: near_threshold_value_ratio
+    name: Near-Threshold Value Ratio
+    description: Share of relevant cash value inside the configured proximity band.
+    unit: percent
+    grain: region_day
+    owner: AML Operations
+    sources: [transactions, kyc]
+    drivers: [region, branch_id, channel, business_type, account_age_band]
+    refresh_sla_hours: 1
+    minimum_history_days: 28
+    access:
+      aggregate_roles: [compliance_head, regional_investigator]
+      detail_roles: [regional_investigator]
+
+  - id: linked_pattern_exposure
+    name: Linked-Pattern Exposure
+    description: Unique transaction value assigned to qualifying connected clusters.
+    unit: INR
+    grain: region_day
+    owner: AML Operations
+    sources: [transactions, kyc, cases]
+    drivers: [region, cluster_id, shared_identifier_type, channel, account_age_band]
+    refresh_sla_hours: 1
+    minimum_history_days: 28
+    access:
+      aggregate_roles: [compliance_head, regional_investigator]
+      detail_roles: [regional_investigator]
+
+  - id: high_risk_cluster_count
+    name: High-Risk Cluster Count
+    description: Count of connected clusters above the transparent review threshold.
+    unit: count
+    grain: region_day
+    owner: AML Investigations
+    sources: [transactions, kyc, cases]
+    drivers: [region, cluster_id, channel, risk_tier]
+    refresh_sla_hours: 1
+    minimum_history_days: 28
+    access:
+      aggregate_roles: [compliance_head, regional_investigator]
+      detail_roles: [regional_investigator]
+
+  - id: alert_investigation_yield
+    name: Alert Investigation Yield
+    description: Confirmed or escalated closed investigations divided by all closed investigations.
+    unit: percent
+    grain: region_week
+    owner: Compliance Effectiveness
+    sources: [cases]
+    drivers: [region, alert_type, investigator_team, risk_tier]
+    refresh_sla_hours: 6
+    minimum_history_days: 28
+    access:
+      aggregate_roles: [compliance_head, regional_investigator]
+      detail_roles: [regional_investigator]
+
+  - id: case_sla_risk
+    name: Case SLA Risk
+    description: Open cases due to breach the SLA within the configured horizon.
+    unit: count
+    grain: region_hour
+    owner: AML Investigations
+    sources: [cases]
+    drivers: [region, investigator_team, case_age_band, priority]
+    refresh_sla_hours: 6
+    minimum_history_days: 1
+    access:
+      aggregate_roles: [compliance_head, regional_investigator]
+      detail_roles: [regional_investigator]
+

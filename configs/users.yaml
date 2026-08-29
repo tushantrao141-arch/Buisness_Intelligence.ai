@@ -1,0 +1,21 @@
+users:
+  - id: compliance_head
+    display_name: Compliance Head
+    role: compliance_head
+    regions: [ALL]
+    can_view_entity_detail: false
+    permitted_actions: [allocate_investigation_capacity, request_kyc_refresh]
+
+  - id: west_investigator
+    display_name: West Regional AML Investigator
+    role: regional_investigator
+    regions: [WEST]
+    can_view_entity_detail: true
+    permitted_actions: [consolidate_linked_events, request_kyc_refresh, monitor_seasonal_activity]
+
+  - id: north_investigator
+    display_name: North Regional AML Investigator
+    role: regional_investigator
+    regions: [NORTH]
+    can_view_entity_detail: true
+    permitted_actions: [consolidate_linked_events, request_kyc_refresh, monitor_seasonal_activity]

@@ -1,0 +1,127 @@
+"""Data quality, evaluation, security, feedback, and runtime governance."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import streamlit as st
+
+from src.config import get_user
+from src.evaluation import evaluation_summary
+from src.security import check_access
+from src.storage import read_events, record_feedback, record_security
+from src.ui import configure_page, get_demo_runtime, render_project_banner, render_sidebar
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+configure_page("Governance", "⚙️")
+bundle, user, region = render_sidebar()
+runtime = get_demo_runtime()
+summary = evaluation_summary(runtime.evaluation)
+
+st.markdown('<div class="ss-eyebrow">CONTROL PLANE</div>', unsafe_allow_html=True)
+st.title("Governance and evaluation")
+st.write("Calculated controls make freshness, quality, security, abstention, evaluation, and runtime behaviour inspectable.")
+render_project_banner()
+
+columns = st.columns(4)
+columns[0].metric("Source freshness", f"{runtime.data.source_freshness['status'].eq('Fresh').mean():.0%}")
+columns[1].metric("Critical DQ failures", int(runtime.data.quality.loc[runtime.data.quality["severity"].eq("critical"), "affected_rows"].sum()))
+columns[2].metric("Acceptance rate", f"{summary['acceptance_rate']:.0%}")
+columns[3].metric("Model calls / cost", "0 / ₹0")
+
+tab_quality, tab_eval, tab_benchmark, tab_security, tab_runtime, tab_feedback = st.tabs(["Data quality", "Held-out evaluation", "Method comparison", "Security", "Runtime", "Feedback"])
+
+with tab_quality:
+    st.markdown("#### Reconciliation checks")
+    st.dataframe(runtime.data.quality, width="stretch", hide_index=True)
+    st.markdown("#### Source freshness")
+    st.dataframe(
+        runtime.data.source_freshness,
+        width="stretch",
+        hide_index=True,
+        column_config={"age_hours": st.column_config.NumberColumn("Age (hours)", format="%.1f"), "sla_hours": st.column_config.NumberColumn("SLA (hours)", format="%.1f")},
+    )
+
+with tab_eval:
+    st.markdown("#### Predefined acceptance scenarios")
+    display = runtime.evaluation.copy()
+    display["result"] = display["passed"].map({True: "PASS", False: "FAIL"})
+    st.dataframe(display[["scenario_id", "scenario", "expected", "actual", "matched_finding", "result"]], width="stretch", hide_index=True)
+    st.caption("Ground-truth labels are read only by the evaluation module after analytics complete. The analytical pipeline cannot access them.")
+
+with tab_benchmark:
+    st.markdown("#### Four-method baseline comparison")
+    benchmark = runtime.benchmark.copy()
+    st.dataframe(
+        benchmark,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "precision": st.column_config.NumberColumn("Precision", format="%.0%%"),
+            "recall": st.column_config.NumberColumn("Recall", format="%.0%%"),
+            "f1": st.column_config.NumberColumn("F1", format="%.0%%"),
+            "false_positive_cost_inr": st.column_config.NumberColumn("Illustrative FP cost", format="₹%,.0f"),
+            "driver_ranking_accuracy": st.column_config.NumberColumn("Driver accuracy", format="%.0%%"),
+            "abstention_correctness": st.column_config.NumberColumn("Abstention", format="%.0%%"),
+            "narrative_numerical_accuracy": st.column_config.NumberColumn("Narrative numeric", format="%.0%%"),
+            "evaluation_latency_ms": st.column_config.NumberColumn("Latency (ms)", format="%.2f"),
+        },
+    )
+    st.caption("Alert-class metrics use the four analytical scenarios. The false-positive review cost is an explicit demonstration assumption of ₹250,000 per unnecessary investigation—not a regulatory or bank cost estimate.")
+    with st.expander("Scenario-level predictions"):
+        st.dataframe(runtime.benchmark_detail, width="stretch", hide_index=True)
+
+with tab_security:
+    st.markdown("#### Pre-evidence entitlement test")
+    west_user = get_user("west_investigator", bundle)
+    decision = check_access(west_user, "NORTH", detail=True)
+    st.code("west_investigator → request NORTH entity detail", language="text")
+    if decision.allowed:
+        st.error("Unexpectedly allowed")
+    else:
+        st.success(f"ACCESS DENIED · {decision.reason}")
+    if st.button("Record security test"):
+        record_security(PROJECT_ROOT, west_user.id, "NORTH", "ACCESS_DENIED" if not decision.allowed else "ALLOWED", decision.reason)
+        st.success("Security event recorded without constructing restricted evidence.")
+    events = read_events(PROJECT_ROOT, "security_events", 20)
+    if not events.empty:
+        st.dataframe(events[["created_at", "user_id", "requested_region", "outcome", "reason"]], width="stretch", hide_index=True)
+
+with tab_runtime:
+    telemetry = read_events(PROJECT_ROOT, "runtime_events", 25)
+    if telemetry.empty:
+        st.caption("No runtime events recorded.")
+    else:
+        st.dataframe(telemetry, width="stretch", hide_index=True)
+    st.markdown("#### LLM/non-LLM boundary")
+    st.json(
+        {
+            "kpi_calculation": "deterministic Python",
+            "movement_and_driver_analysis": "deterministic Python",
+            "relationship_graph": "NetworkX transparent rules",
+            "narrative": "deterministic fallback",
+            "llm_enabled": bundle.settings.llm.enabled,
+            "raw_identifiers_to_llm": bundle.settings.security.send_raw_identifiers_to_llm,
+        }
+    )
+
+with tab_feedback:
+    finding_options = runtime.analysis.findings.loc[runtime.analysis.findings["region"].eq(region), "finding_id"].tolist()
+    if not finding_options:
+        st.caption("No findings are available for feedback in this region.")
+    else:
+        with st.form("feedback_form"):
+            finding_id = st.selectbox("Finding", finding_options)
+            rating = st.radio("Was this explanation useful?", ["Useful", "Partly useful", "Not useful"], horizontal=True)
+            correctness = st.radio("Was the explanation correct?", ["Correct", "Partially correct", "Incorrect"], horizontal=True)
+            corrected_driver = st.text_input("Corrected primary driver (if needed)")
+            action_decision = st.radio("Recommended action", ["Accepted", "Rejected", "Not reviewed"], horizontal=True)
+            comment = st.text_area("Comment", placeholder="What evidence or explanation was missing?")
+            submitted = st.form_submit_button("Submit feedback", type="primary")
+            if submitted:
+                record_feedback(PROJECT_ROOT, user.id, finding_id, rating, comment, correctness, corrected_driver, action_decision, user.role)
+                st.success("Feedback saved for governance review.")
+        feedback = read_events(PROJECT_ROOT, "feedback_events", 20)
+        if not feedback.empty:
+            st.dataframe(feedback[["created_at", "user_id", "user_role", "finding_id", "correctness", "corrected_driver", "action_decision", "rating", "comment"]], width="stretch", hide_index=True)

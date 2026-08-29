@@ -1,0 +1,37 @@
+actions:
+  - id: allocate_investigation_capacity
+    trigger_driver: case_sla_risk
+    lever: investigation_capacity
+    action: Reallocate investigators to the affected region for time-bound review.
+    owner: Compliance Head
+    allowed_roles: [compliance_head]
+    expected_impact_method: backlog_capacity_simulation
+    monitoring_kpi: case_sla_risk
+
+  - id: consolidate_linked_events
+    trigger_driver: connected_accounts
+    lever: case_consolidation
+    action: Consolidate related events into one investigation and preserve the evidence links.
+    owner: Regional AML Investigator
+    allowed_roles: [regional_investigator]
+    expected_impact_method: historical_case_backtest
+    monitoring_kpi: linked_pattern_exposure
+
+  - id: request_kyc_refresh
+    trigger_driver: stale_or_missing_kyc
+    lever: data_completeness
+    action: Request refreshed KYC and entity-mapping information before escalation.
+    owner: Regional AML Investigator
+    allowed_roles: [regional_investigator, compliance_head]
+    expected_impact_method: completeness_recalculation
+    monitoring_kpi: linked_pattern_exposure
+
+  - id: monitor_seasonal_activity
+    trigger_driver: seasonal_business_activity
+    lever: monitoring_window
+    action: Monitor the activity for seven days and compare it with the documented seasonal profile.
+    owner: Regional AML Investigator
+    allowed_roles: [regional_investigator]
+    expected_impact_method: follow_up_observation
+    monitoring_kpi: near_threshold_value_ratio
+

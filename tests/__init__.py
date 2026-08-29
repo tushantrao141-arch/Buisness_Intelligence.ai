@@ -1,0 +1,2 @@
+"""SilentSignal tests."""
+
