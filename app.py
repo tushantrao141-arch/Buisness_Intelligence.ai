@@ -95,6 +95,30 @@ for column, movement in zip(kpi_columns, scope.sort_values("kpi_id").itertuples(
     )
 
 render_section_header(
+    "How the five KPIs connect",
+    "The measures form one review journey from activity concentration to investigation capacity—not a claim of causation.",
+    "KPI relationship map",
+)
+st.markdown(
+    """
+    <div class="ss-kpi-map">
+      <div class="ss-kpi-node"><span class="ss-kpi-order">01 · Activity</span><strong>Near-Threshold Value Ratio</strong><span>Detects concentration inside the configured cash proximity band.</span></div>
+      <div class="ss-kpi-arrow">→</div>
+      <div class="ss-kpi-node"><span class="ss-kpi-order">02 · Exposure</span><strong>Linked-Pattern Exposure</strong><span>Counts unique value attached to qualifying transparent relationship clusters.</span></div>
+      <div class="ss-kpi-arrow">→</div>
+      <div class="ss-kpi-node"><span class="ss-kpi-order">03 · Priority</span><strong>High-Risk Cluster Count</strong><span>Tracks distinct clusters that pass review-score and activity-coverage gates.</span></div>
+      <div class="ss-kpi-arrow">→</div>
+      <div class="ss-kpi-outcomes">
+        <div class="ss-kpi-node"><span class="ss-kpi-order">04 · Effectiveness</span><strong>Alert Investigation Yield</strong><span>Shows closed-case investigation outcomes.</span></div>
+        <div class="ss-kpi-node"><span class="ss-kpi-order">05 · Capacity</span><strong>Case SLA Risk</strong><span>Shows operational pressure requiring authorised response.</span></div>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+st.caption("Connected means the KPIs share a governed operational workflow and evidence lineage; it does not imply that one KPI causally determines another.")
+
+render_section_header(
     "From fragmented data to governed action",
     "Every step stays deterministic, inspectable, and role-aware.",
     "Operating model",
@@ -119,16 +143,15 @@ render_section_header(
 )
 health_cards = []
 for source in runtime.data.source_freshness.itertuples(index=False):
-    source_name = {"transactions": "Transactions", "kyc": "KYC", "cases": "Cases"}.get(
-        source.source,
-        source.source.title(),
-    )
+    contract = getattr(bundle.settings.source_contracts, source.source)
+    source_name = contract.display_name
     health_cards.append(
         f'<div class="ss-health-card"><div class="ss-health-top">'
         f'<span class="ss-health-name">{escape(source_name)}</span>'
         f'<span class="ss-health-state">● {escape(source.status)}</span></div>'
+        f'<div class="ss-health-meta">{escape(contract.grain)} · {escape(contract.refresh_cadence)}</div>'
         f'<div class="ss-health-meta">{source.row_count:,} rows · {source.age_hours:.1f} hours old · '
-        f'{source.sla_hours:g}h SLA</div></div>'
+        f'{source.sla_hours:g}h freshness SLA</div></div>'
     )
 st.markdown(f'<div class="ss-health-grid">{"".join(health_cards)}</div>', unsafe_allow_html=True)
 

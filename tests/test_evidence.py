@@ -28,8 +28,10 @@ class EvidencePacketTests(unittest.TestCase):
     def test_packet_contains_all_governed_sections_and_no_raw_ids(self) -> None:
         user = get_user("west_investigator", self.bundle)
         packet = build_evidence_packet(self.runtime.data, self.runtime.analysis, self.bundle, user, "WEST", self.west_finding["finding_id"])
-        expected = {"kpi", "drivers", "driver_reconciliation", "source_freshness", "missing_data", "analytical_method", "confidence", "alternative_hypothesis", "evidence", "permitted_actions"}
+        expected = {"kpi", "drivers", "driver_reconciliation", "source_freshness", "lineage", "missing_data", "analytical_method", "confidence", "alternative_hypothesis", "evidence", "permitted_actions"}
         self.assertTrue(expected.issubset(packet))
+        self.assertIn("formula", packet["kpi"])
+        self.assertGreaterEqual(len(packet["lineage"]), 2)
         serialized = json.dumps(llm_payload(packet))
         self.assertNotIn("W_SIG_01", serialized)
         self.assertFalse(packet["guardrails"]["raw_identifiers_present"])

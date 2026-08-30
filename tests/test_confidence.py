@@ -21,6 +21,11 @@ class TestConfidence(unittest.TestCase):
         self.assertIn("ALERT", decisions)
         self.assertIn("ABSTAIN", decisions)
 
+    def test_connected_pattern_queue_excludes_diffuse_graph_noise(self):
+        connected = self.findings.loc[self.findings["finding_type"].eq("Connected pattern")]
+        self.assertEqual(len(connected), 1)
+        self.assertEqual(connected.iloc[0]["title"], "8-account connected cash pattern")
+
 
 if __name__ == "__main__":
     unittest.main()

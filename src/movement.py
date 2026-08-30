@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
 
 from src.data import DataBundle
 from src.graph_engine import RelationshipResult
 from src.kpi_engine import alert_investigation_yield, case_sla_risk, high_risk_cluster_count, linked_pattern_exposure, near_threshold_value_ratio
+from src.schemas import KPIContract, MaterialityRule
 
 
 def _kpi_row(date: pd.Timestamp, region: str, kpi_id: str, value: float) -> dict:
     return {"date": date, "region": region, "kpi_id": kpi_id, "value": float(value)}
 
 
-def build_kpi_history(data: DataBundle, relationships: RelationshipResult) -> pd.DataFrame:
+def build_kpi_history(
+    data: DataBundle,
+    relationships: RelationshipResult,
+    review_score_threshold: float = 60,
+) -> pd.DataFrame:
     """Build same-grain historical timeline for all 5 KPIs across all regions."""
     tx = data.enriched.merge(
         relationships.transaction_clusters[["transaction_id", "cluster_id", "qualifies"]],
@@ -33,8 +40,12 @@ def build_kpi_history(data: DataBundle, relationships: RelationshipResult) -> pd
             near_ratio = near_threshold_value_ratio(daily)
             qualifying_ids = set(daily.loc[daily["qualifies"], "transaction_id"].astype(str))
             linked = linked_pattern_exposure(daily, qualifying_ids)
-            cluster_inputs = daily.loc[daily["qualifies"], ["cluster_id"]].dropna().assign(review_score=60)
-            cluster_count = float(high_risk_cluster_count(cluster_inputs))
+            cluster_inputs = daily.loc[daily["qualifies"], ["cluster_id"]].dropna().assign(
+                review_score=review_score_threshold
+            )
+            cluster_count = float(
+                high_risk_cluster_count(cluster_inputs, review_score_threshold=review_score_threshold)
+            )
 
             cases = data.cases
             if region != "ALL":
@@ -58,8 +69,49 @@ def build_kpi_history(data: DataBundle, relationships: RelationshipResult) -> pd
     return pd.DataFrame(rows)
 
 
-def detect_movements(history: pd.DataFrame) -> pd.DataFrame:
+def _passes_condition(
+    value: float,
+    mode: str,
+    threshold: float,
+    comparison: str,
+) -> bool:
+    evaluated = abs(value) if mode == "absolute" else value
+    return evaluated >= threshold if comparison == "gte" else evaluated > threshold
+
+
+def passes_materiality_rule(delta: float, z_score: float, rule: MaterialityRule) -> bool:
+    """Evaluate a governed KPI materiality rule without KPI-specific magic numbers."""
+
+    delta_passes = _passes_condition(
+        delta,
+        rule.delta_mode,
+        rule.delta_threshold,
+        rule.delta_comparison,
+    )
+    z_score_passes = _passes_condition(
+        z_score,
+        rule.z_score_mode,
+        rule.z_score_threshold,
+        rule.z_score_comparison,
+    )
+    return delta_passes and z_score_passes if rule.combination == "and" else delta_passes or z_score_passes
+
+
+def detect_movements(
+    history: pd.DataFrame,
+    contracts: Sequence[KPIContract] | None = None,
+) -> pd.DataFrame:
     """Detect material movements against 28-day historical baselines."""
+
+    if contracts is None:
+        from src.config import load_config_bundle
+
+        contracts = load_config_bundle().kpis
+    materiality_rules = {contract.id: contract.materiality for contract in contracts}
+    missing_rules = set(history["kpi_id"].unique()) - set(materiality_rules)
+    if missing_rules:
+        raise ValueError(f"Missing materiality rules for KPIs: {sorted(missing_rules)}")
+
     rows: list[dict] = []
     for (region, kpi_id), group in history.groupby(["region", "kpi_id"]):
         ordered = group.sort_values("date")
@@ -84,12 +136,7 @@ def detect_movements(history: pd.DataFrame) -> pd.DataFrame:
         delta = actual - expected
         delta_pct = delta / abs(expected) * 100 if abs(expected) > 1e-9 else (100.0 if actual > 0 else 0.0)
 
-        if kpi_id in {"near_threshold_value_ratio", "alert_investigation_yield"}:
-            material = abs(delta) >= 5 and abs(z_score) >= 1.5
-        elif kpi_id == "linked_pattern_exposure":
-            material = delta > 5_000_000 and z_score >= 1.5
-        else:
-            material = delta >= 2 or z_score >= 2
+        material = passes_materiality_rule(delta, z_score, materiality_rules[kpi_id])
 
         impact = min(100.0, abs(z_score) * 18 + min(abs(delta_pct), 200) * 0.22)
         rows.append(

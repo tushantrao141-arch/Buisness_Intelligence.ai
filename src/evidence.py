@@ -83,9 +83,14 @@ def build_evidence_packet(
             "id": kpi_id,
             "name": contract.name,
             "definition": contract.description,
+            "formula": contract.formula,
             "unit": contract.unit,
             "grain": contract.grain,
             "owner": contract.owner,
+            "minimum_history_days": contract.minimum_history_days,
+            "materiality_rule": contract.materiality.model_dump(),
+            "calculation_notes": list(contract.calculation_notes),
+            "access": contract.access.model_dump(),
             "actual": float(movement["actual"]),
             "expected": float(movement["expected"]),
             "change": float(movement["delta"]),
@@ -116,6 +121,7 @@ def build_evidence_packet(
             }
             for row in data.source_freshness.itertuples(index=False)
         ],
+        "lineage": list(contract.lineage),
         "missing_data": {"stale_kyc_accounts": stale_accounts, "incomplete_mapping_accounts": incomplete_accounts},
         "analytical_method": str(finding["method"]),
         "confidence": {

@@ -37,12 +37,27 @@ class AnalysisSettings(StrictModel):
     sparse_history_days: int = Field(ge=7)
     sla_risk_horizon_hours: int = Field(gt=0)
     abstention_confidence_below: float = Field(ge=0, le=1)
+    review_score_threshold: float = Field(ge=0, le=100)
+    connected_pattern_minimum_near_events: int = Field(ge=1)
+    connected_pattern_minimum_account_coverage: float = Field(gt=0, le=1)
 
 
 class FreshnessSettings(StrictModel):
     transactions: float = Field(gt=0)
     kyc: float = Field(gt=0)
     cases: float = Field(gt=0)
+
+
+class SourceContract(StrictModel):
+    display_name: str = Field(min_length=2)
+    grain: str = Field(min_length=5)
+    refresh_cadence: str = Field(min_length=5)
+
+
+class SourceContracts(StrictModel):
+    transactions: SourceContract
+    kyc: SourceContract
+    cases: SourceContract
 
 
 class SecuritySettings(StrictModel):
@@ -62,6 +77,7 @@ class Settings(StrictModel):
     project: ProjectInfo
     analysis: AnalysisSettings
     freshness_sla_hours: FreshnessSettings
+    source_contracts: SourceContracts
     security: SecuritySettings
     llm: LLMSettings
 
@@ -71,17 +87,31 @@ class AccessPolicy(StrictModel):
     detail_roles: list[Role]
 
 
+class MaterialityRule(StrictModel):
+    delta_mode: Literal["absolute", "increase"]
+    delta_threshold: float = Field(ge=0)
+    delta_comparison: Literal["gte", "gt"] = "gte"
+    z_score_mode: Literal["absolute", "increase"]
+    z_score_threshold: float = Field(ge=0)
+    z_score_comparison: Literal["gte", "gt"] = "gte"
+    combination: Literal["and", "or"]
+
+
 class KPIContract(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     name: str = Field(min_length=3)
     description: str = Field(min_length=10)
+    formula: str = Field(min_length=10)
     unit: Literal["percent", "INR", "count"]
     grain: Literal["region_day", "region_week", "region_hour"]
     owner: str = Field(min_length=2)
     sources: list[Literal["transactions", "kyc", "cases"]] = Field(min_length=1)
     drivers: list[str] = Field(min_length=1)
+    calculation_notes: list[str] = Field(min_length=1)
+    lineage: list[str] = Field(min_length=2)
     refresh_sla_hours: float = Field(gt=0)
     minimum_history_days: int = Field(ge=1)
+    materiality: MaterialityRule
     access: AccessPolicy
 
 

@@ -15,13 +15,26 @@ class TestGraphEngine(unittest.TestCase):
 
     def test_s1_forms_connected_component(self):
         s1_accounts = {f"W_SIG_{i:02d}" for i in range(1, 9)}
-        found = any(s1_accounts.issubset(set(cluster.account_ids)) for cluster in self.rel.clusters.itertuples())
+        found = any(
+            s1_accounts.issubset(set(cluster.account_ids)) and cluster.qualifies
+            for cluster in self.rel.clusters.itertuples()
+        )
         self.assertTrue(found, "S1 accounts must form a single connected component cluster")
 
     def test_s2_remains_isolated(self):
         s2 = "E_SEASONAL_01"
         found = any(s2 in cluster.account_ids for cluster in self.rel.clusters.itertuples())
         self.assertFalse(found, "S2 account must not belong to any connected cluster")
+
+    def test_diffuse_components_do_not_qualify_as_connected_cash_patterns(self):
+        qualifying = self.rel.clusters.loc[self.rel.clusters["qualifies"]]
+        self.assertFalse(qualifying.empty)
+        self.assertTrue((qualifying["near_active_account_coverage"] >= 0.50).all())
+        self.assertFalse(
+            self.rel.clusters.loc[
+                self.rel.clusters["account_count"].ge(80), "qualifies"
+            ].any()
+        )
 
 
 if __name__ == "__main__":

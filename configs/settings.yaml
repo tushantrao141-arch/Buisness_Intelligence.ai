@@ -12,11 +12,28 @@ analysis:
   sparse_history_days: 28
   sla_risk_horizon_hours: 24
   abstention_confidence_below: 0.60
+  review_score_threshold: 60
+  connected_pattern_minimum_near_events: 4
+  connected_pattern_minimum_account_coverage: 0.50
 
 freshness_sla_hours:
   transactions: 1
   kyc: 30
   cases: 6
+
+source_contracts:
+  transactions:
+    display_name: Transactions
+    grain: One row per transaction event
+    refresh_cadence: Simulated every 15 minutes
+  kyc:
+    display_name: KYC
+    grain: One row per account snapshot
+    refresh_cadence: Simulated daily
+  cases:
+    display_name: Cases
+    grain: One row per case-status event
+    refresh_cadence: Simulated every 4 hours
 
 security:
   mask_account_suffix_length: 4

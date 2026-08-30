@@ -9,18 +9,25 @@
 
 | Area | Status | Notes |
 |---|---|---|
-| Synthetic Data Sources | ✅ Complete | 3 sources (transactions, kyc, cases) with 90-day history, deterministic seed 42 |
+| Synthetic Data Sources | ✅ Complete | 3 governed source contracts with visible grain, cadence, freshness, and 90-day deterministic seed-42 history |
 | Referential Integrity | ✅ Complete | Transactions -> KYC (100% match), Cases -> KYC/Accounts (100% match) |
-| Governed KPIs (5/5) | ✅ Complete | Near-threshold ratio, Linked-pattern exposure, High-risk cluster count, Alert yield, Case SLA risk |
-| Movement & Baselines | ✅ Complete | 28-day governed baseline, median/MAD z-score, materiality gate |
-| Relationship Graph | ✅ Complete | NetworkX graph connecting shared phone, address, beneficiary |
+| Governed KPIs (5/5) | ✅ Complete | Formula, constraints, drivers, materiality, lineage, minimum history, and role access are machine-readable and visible in the app |
+| Movement & Baselines | ✅ Complete | 28-day governed mean/standard-deviation baseline with config-driven KPI materiality gates |
+| Relationship Graph | ✅ Complete | NetworkX shared phone/address/beneficiary graph with review-score, near-event, and 50% active-account coverage gates |
 | Driver Reconciliation | ✅ Complete | Mutually exclusive leaf-segment contributions reconciling exactly to movement |
-| Evidence & Confidence | ✅ Complete | Transparent quality score, S3 abstention gate, evidence packets with evidence IDs |
+| Evidence & Confidence | ✅ Complete | Transparent quality score, S3 abstention gate, evidence IDs, and visible calculation lineage |
 | RBAC & Security | ✅ Complete | Pre-evidence access check, region filtering, identifier masking |
 | Governed Actions | ✅ Complete | Triggered from action playbooks by role, no autonomous execution |
-| Telemetry & Audit | ✅ Complete | SQLite local audit store for runtime, action, feedback, security events |
+| Telemetry & Audit | ✅ Complete | Visible latency, model calls, tokens, estimated cost, cache status, plus SQLite action/feedback/security events |
 | Evaluation Benchmark | ✅ Complete | Predefined S1–S5 acceptance diagnostics, 4-method comparison |
-| Decision Workspace | ✅ Complete | 5 Streamlit pages (KPI Pulse, Why It Changed, Investigation, Actions, Governance) |
+| Decision Workspace | ✅ Complete | 5 professional Streamlit pages, connected-KPI map, readable LLM boundary, and cross-page persona/region context |
+
+## Verification Checkpoint
+
+- **66 tests passing** after the judge-readiness contract and UI update.
+- Project configuration validation passes.
+- All six Streamlit surfaces render through automated smoke tests.
+- Physical mobile-device testing and owner-account public deployment remain external owner steps.
 
 ## Acceptance Scenarios (S1–S5)
 - **S1 (Strong connected pattern — WEST):** ALERT (confidence >= 0.75)

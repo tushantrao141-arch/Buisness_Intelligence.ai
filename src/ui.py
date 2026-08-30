@@ -10,6 +10,7 @@ import streamlit as st
 
 from src.config import load_config_bundle
 from src.runtime import build_demo
+from src.schemas import KPIContract
 from src.security import allowed_regions
 
 
@@ -487,6 +488,24 @@ def configure_page(title: str, icon: str = "🔎") -> None:
           .ss-flow-number { color: var(--ss-primary); font-size: .68rem; font-weight: 820; letter-spacing: .09em; }
           .ss-flow-title { color: var(--ss-ink); font-size: .91rem; font-weight: 780; margin: 8px 0 5px; }
           .ss-flow-detail { color: #758197; font-size: .72rem; line-height: 1.5; }
+          .ss-kpi-map {
+            align-items: center;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr auto 1fr auto 1fr auto 1.25fr;
+          }
+          .ss-kpi-node {
+            background: linear-gradient(145deg, #fff, #f7f6ff);
+            border: 1px solid #e5e2f8;
+            border-radius: 15px;
+            min-height: 112px;
+            padding: 16px;
+          }
+          .ss-kpi-node strong { color: var(--ss-ink); display: block; font-size: .86rem; line-height: 1.3; }
+          .ss-kpi-node span { color: #778399; display: block; font-size: .69rem; line-height: 1.45; margin-top: 8px; }
+          .ss-kpi-order { color: var(--ss-primary) !important; font-size: .62rem !important; font-weight: 820; letter-spacing: .09em; margin: 0 0 7px !important; text-transform: uppercase; }
+          .ss-kpi-arrow { color: #a7a0dd; font-size: 1.35rem; font-weight: 800; }
+          .ss-kpi-outcomes { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
           .ss-health-grid { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
           .ss-health-card { background: white; border: 1px solid var(--ss-line); border-radius: 14px; padding: 14px; }
           .ss-health-top { align-items: center; display: flex; justify-content: space-between; }
@@ -498,6 +517,8 @@ def configure_page(title: str, icon: str = "🔎") -> None:
             .ss-hero { grid-template-columns: 1fr; }
             .ss-flow { grid-template-columns: 1fr 1fr; }
             .ss-flow-step:after { display: none; }
+            .ss-kpi-map { grid-template-columns: 1fr; }
+            .ss-kpi-arrow { text-align: center; transform: rotate(90deg); }
             .ss-health-grid { grid-template-columns: 1fr; }
           }
           @media (max-width: 720px) {
@@ -580,6 +601,21 @@ def render_sidebar():
     """Render persona and region controls with the current entitlement context."""
 
     bundle = load_config_bundle()
+    users_by_id = {item.id: item for item in bundle.users}
+    query_user_id = st.query_params.get("persona")
+    session_user_id = st.session_state.get("decision_user_id")
+    saved_user_id = query_user_id if query_user_id in users_by_id else session_user_id
+    if saved_user_id not in users_by_id:
+        saved_user_id = "compliance_head" if "compliance_head" in users_by_id else bundle.users[0].id
+    saved_user = users_by_id[saved_user_id]
+    saved_regions = allowed_regions(saved_user)
+    default_region = "WEST" if "WEST" in saved_regions else saved_regions[0]
+    query_region = st.query_params.get("region")
+    session_region = st.session_state.get("decision_region")
+    saved_region = query_region if query_region in saved_regions else session_region
+    if saved_region not in saved_regions:
+        saved_region = default_region
+    navigation_query = {"persona": saved_user_id, "region": saved_region}
     st.sidebar.markdown(
         """
         <div class="ss-brand">
@@ -594,30 +630,63 @@ def render_sidebar():
     )
     st.sidebar.markdown('<div class="ss-sidebar-label">Workspace</div>', unsafe_allow_html=True)
     try:
-        st.sidebar.page_link("app.py", label="Command Center", icon="🏠")
-        st.sidebar.page_link("pages/1_KPI_Pulse.py", label="KPI Pulse", icon="📊")
-        st.sidebar.page_link("pages/2_Why_It_Changed.py", label="Why It Changed", icon="🧭")
-        st.sidebar.page_link("pages/3_SilentSignal_Investigation.py", label="Investigation", icon="🔗")
-        st.sidebar.page_link("pages/4_Actions.py", label="Actions", icon="✅")
-        st.sidebar.page_link("pages/5_Governance.py", label="Governance", icon="⚙️")
+        st.sidebar.page_link("app.py", label="Command Center", icon="🏠", query_params=navigation_query)
+        st.sidebar.page_link("pages/1_KPI_Pulse.py", label="KPI Pulse", icon="📊", query_params=navigation_query)
+        st.sidebar.page_link("pages/2_Why_It_Changed.py", label="Why It Changed", icon="🧭", query_params=navigation_query)
+        st.sidebar.page_link("pages/3_SilentSignal_Investigation.py", label="Investigation", icon="🔗", query_params=navigation_query)
+        st.sidebar.page_link("pages/4_Actions.py", label="Actions", icon="✅", query_params=navigation_query)
+        st.sidebar.page_link("pages/5_Governance.py", label="Governance", icon="⚙️", query_params=navigation_query)
     except KeyError:
         # AppTest executes each page without Streamlit's multipage route metadata.
         st.sidebar.caption("Open the complete app to use workspace navigation.")
     st.sidebar.markdown('<div class="ss-sidebar-label">Decision context</div>', unsafe_allow_html=True)
-    user = st.sidebar.selectbox(
+    # Streamlit gives widgets on different pages separate identities, even when
+    # their explicit keys match. Include the governed URL context in the widget
+    # key so a value remembered on an older page cannot overwrite a new route.
+    user_widget_key = f"_decision_user_widget_{saved_user_id}_{saved_region}"
+    st.session_state[user_widget_key] = saved_user_id
+
+    def store_user_context() -> None:
+        selected_user_id = st.session_state[user_widget_key]
+        st.session_state["decision_user_id"] = selected_user_id
+        st.query_params["persona"] = selected_user_id
+        selected_regions = allowed_regions(users_by_id[selected_user_id])
+        selected_region = st.session_state.get("decision_region")
+        if selected_region not in selected_regions:
+            selected_region = "WEST" if "WEST" in selected_regions else selected_regions[0]
+            st.session_state["decision_region"] = selected_region
+        st.query_params["region"] = selected_region
+
+    user_id = st.sidebar.selectbox(
         "Acting persona",
-        options=list(bundle.users),
-        format_func=lambda item: item.display_name,
-        key="active_user",
+        options=list(users_by_id),
+        format_func=lambda item_id: users_by_id[item_id].display_name,
+        key=user_widget_key,
+        on_change=store_user_context,
     )
+    st.session_state["decision_user_id"] = user_id
+    user = users_by_id[user_id]
+
     regions = allowed_regions(user)
-    default_region = "WEST" if "WEST" in regions else regions[0]
+    region_widget_key = f"_decision_region_widget_{user_id}_{saved_region}"
+    st.session_state[region_widget_key] = saved_region
+
+    def store_region_context() -> None:
+        selected_region = st.session_state[region_widget_key]
+        st.session_state["decision_region"] = selected_region
+        st.query_params["region"] = selected_region
+
     region = st.sidebar.selectbox(
         "Region scope",
         options=regions,
-        index=regions.index(default_region),
-        key=f"active_region_{user.id}",
+        key=region_widget_key,
+        on_change=store_region_context,
     )
+    st.session_state["decision_region"] = region
+    if st.query_params.get("persona") != user_id:
+        st.query_params["persona"] = user_id
+    if st.query_params.get("region") != region:
+        st.query_params["region"] = region
     detail_access = "Permitted" if user.can_view_entity_detail else "Aggregate only"
     st.sidebar.markdown(
         f"""
@@ -647,6 +716,26 @@ def format_kpi_value(kpi_id: str, value: float) -> str:
             return f"₹{value / 100_000:.1f} L"
         return f"₹{value:,.0f}"
     return f"{value:,.0f}"
+
+
+def materiality_rule_text(contract: KPIContract) -> str:
+    """Render a governed KPI materiality rule in concise business language."""
+
+    rule = contract.materiality
+    delta_symbol = "≥" if rule.delta_comparison == "gte" else ">"
+    z_symbol = "≥" if rule.z_score_comparison == "gte" else ">"
+    delta_label = "Absolute movement" if rule.delta_mode == "absolute" else "Increase"
+    z_label = "|Z-score|" if rule.z_score_mode == "absolute" else "Z-score"
+    if contract.unit == "percent":
+        delta_value = f"{rule.delta_threshold:g} percentage points"
+    elif contract.unit == "INR":
+        delta_value = format_kpi_value(contract.id, rule.delta_threshold)
+    else:
+        delta_value = f"{rule.delta_threshold:g}"
+    return (
+        f"{delta_label} {delta_symbol} {delta_value} "
+        f"{rule.combination.upper()} {z_label} {z_symbol} {rule.z_score_threshold:g}"
+    )
 
 
 def decision_chip(decision: str) -> str:

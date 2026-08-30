@@ -45,19 +45,39 @@ columns = st.columns(4)
 columns[0].metric("Source freshness", f"{runtime.data.source_freshness['status'].eq('Fresh').mean():.0%}")
 columns[1].metric("Critical DQ failures", int(runtime.data.quality.loc[runtime.data.quality["severity"].eq("critical"), "affected_rows"].sum()))
 columns[2].metric("Acceptance rate", f"{summary['acceptance_rate']:.0%}")
-columns[3].metric("Model calls / cost", "0 / ₹0")
+columns[3].metric("Model calls / cost", "0 / US$0.00")
 
 tab_quality, tab_eval, tab_benchmark, tab_security, tab_runtime, tab_feedback = st.tabs(["Data quality", "Held-out evaluation", "Method comparison", "Security", "Runtime", "Feedback"])
 
 with tab_quality:
     st.markdown("#### Reconciliation checks")
     st.dataframe(runtime.data.quality, width="stretch", hide_index=True)
-    st.markdown("#### Source freshness")
+    st.markdown("#### Source contracts and freshness")
+    freshness = runtime.data.source_freshness.copy()
+    source_contracts = bundle.settings.source_contracts.model_dump()
+    freshness["source_name"] = freshness["source"].map(
+        lambda source: source_contracts[source]["display_name"]
+    )
+    freshness["grain"] = freshness["source"].map(
+        lambda source: source_contracts[source]["grain"]
+    )
+    freshness["refresh_cadence"] = freshness["source"].map(
+        lambda source: source_contracts[source]["refresh_cadence"]
+    )
     st.dataframe(
-        runtime.data.source_freshness,
+        freshness[["source_name", "grain", "refresh_cadence", "last_refresh", "age_hours", "sla_hours", "status", "row_count"]],
         width="stretch",
         hide_index=True,
-        column_config={"age_hours": st.column_config.NumberColumn("Age (hours)", format="%.1f"), "sla_hours": st.column_config.NumberColumn("SLA (hours)", format="%.1f")},
+        column_config={
+            "source_name": "Source",
+            "grain": "Source grain",
+            "refresh_cadence": "Simulated refresh cadence",
+            "last_refresh": "Last refresh",
+            "age_hours": st.column_config.NumberColumn("Age (hours)", format="%.1f"),
+            "sla_hours": st.column_config.NumberColumn("Freshness SLA (hours)", format="%.1f"),
+            "status": "Freshness",
+            "row_count": st.column_config.NumberColumn("Rows", format="%d"),
+        },
     )
 
 with tab_eval:
@@ -140,18 +160,40 @@ with tab_runtime:
     if telemetry.empty:
         st.caption("No runtime events recorded.")
     else:
+        latest = telemetry.iloc[0]
+        metrics = st.columns(5)
+        metrics[0].metric("End-to-end latency", f"{latest['latency_ms']:,.0f} ms")
+        metrics[1].metric("Model calls", int(latest["model_calls"]))
+        metrics[2].metric("Tokens", f"{int(latest['tokens']):,}")
+        metrics[3].metric("Estimated cost", f"US${latest['estimated_cost_usd']:,.4f}")
+        metrics[4].metric("Cache", str(latest["cache_status"]).title())
+        st.markdown("#### Recent execution telemetry")
         st.dataframe(telemetry, width="stretch", hide_index=True)
-    st.markdown("#### LLM/non-LLM boundary")
-    st.json(
-        {
-            "kpi_calculation": "deterministic Python",
-            "movement_and_driver_analysis": "deterministic Python",
-            "relationship_graph": "NetworkX transparent rules",
-            "narrative": "deterministic fallback",
-            "llm_enabled": bundle.settings.llm.enabled,
-            "raw_identifiers_to_llm": bundle.settings.security.send_raw_identifiers_to_llm,
-        }
-    )
+    st.markdown("#### LLM versus non-LLM processing boundary")
+    deterministic, narrative = st.columns(2)
+    with deterministic:
+        with st.container(border=True):
+            st.markdown("##### Deterministic processing · executed")
+            st.markdown(
+                "- Source validation, reconciliation, and freshness\n"
+                "- KPI calculation, baselines, materiality, and driver reconciliation\n"
+                "- Transparent NetworkX relationships and review scoring\n"
+                "- Evidence confidence, abstention, authorization, and action selection"
+            )
+            st.success("These stages own every number, score, threshold, and permitted action.")
+    with narrative:
+        with st.container(border=True):
+            st.markdown("##### Narrative layer · disabled in this run")
+            st.markdown(
+                "- Current output uses the deterministic evidence-linked fallback\n"
+                "- If enabled, an LLM may only convert the validated packet into persona-specific language\n"
+                "- It may not calculate KPIs, confidence, contributions, or select actions\n"
+                "- Raw identifiers remain excluded before any narrative call"
+            )
+            st.info(
+                f"LLM enabled: {bundle.settings.llm.enabled} · "
+                f"Raw identifiers allowed: {bundle.settings.security.send_raw_identifiers_to_llm}"
+            )
 
 with tab_feedback:
     finding_options = runtime.analysis.findings.loc[runtime.analysis.findings["region"].eq(region), "finding_id"].tolist()

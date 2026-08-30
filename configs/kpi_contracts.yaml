@@ -2,13 +2,27 @@ kpis:
   - id: near_threshold_value_ratio
     name: Near-Threshold Value Ratio
     description: Share of relevant cash value inside the configured proximity band.
+    formula: Qualifying near-threshold cash value divided by all relevant cash value in the same slice, multiplied by 100.
     unit: percent
     grain: region_day
     owner: AML Operations
     sources: [transactions, kyc]
     drivers: [region, branch_id, channel, business_type, account_age_band]
+    calculation_notes:
+      - Qualifying cash is at least 80% and below 100% of the illustrative INR 10 lakh threshold.
+      - KYC contributes governed business and account-age drivers; it does not determine guilt or disposition.
+    lineage:
+      - transactions.csv -> validate cash events, amounts, regions, and unique transaction IDs
+      - kyc.csv -> enrich account age and business context after account reconciliation
+      - governed proximity flag -> aggregate qualifying value / all relevant cash value by region-day
     refresh_sla_hours: 1
     minimum_history_days: 28
+    materiality:
+      delta_mode: absolute
+      delta_threshold: 5
+      z_score_mode: absolute
+      z_score_threshold: 1.5
+      combination: and
     access:
       aggregate_roles: [compliance_head, regional_investigator]
       detail_roles: [regional_investigator]
@@ -16,13 +30,28 @@ kpis:
   - id: linked_pattern_exposure
     name: Linked-Pattern Exposure
     description: Unique transaction value assigned to qualifying connected clusters.
+    formula: Sum unique transaction value belonging to qualifying connected clusters; each transaction ID is counted once.
     unit: INR
     grain: region_day
     owner: AML Operations
-    sources: [transactions, kyc, cases]
+    sources: [transactions, kyc]
     drivers: [region, cluster_id, shared_identifier_type, channel, account_age_band]
+    calculation_notes:
+      - A qualifying cluster must meet the configured review-score, near-event, and active-account coverage gates.
+      - Transaction IDs are deduplicated before exposure is aggregated.
+    lineage:
+      - transactions.csv -> validate events and derive cash/proximity features
+      - kyc.csv plus beneficiary fields -> construct transparent shared-identifier relationships
+      - qualifying cluster membership -> sum unique transaction value by region-day
     refresh_sla_hours: 1
     minimum_history_days: 28
+    materiality:
+      delta_mode: increase
+      delta_threshold: 5000000
+      delta_comparison: gt
+      z_score_mode: increase
+      z_score_threshold: 1.5
+      combination: and
     access:
       aggregate_roles: [compliance_head, regional_investigator]
       detail_roles: [regional_investigator]
@@ -30,13 +59,27 @@ kpis:
   - id: high_risk_cluster_count
     name: High-Risk Cluster Count
     description: Count of connected clusters above the transparent review threshold.
+    formula: Count distinct connected cluster IDs that pass every configured qualification gate.
     unit: count
     grain: region_day
     owner: AML Investigations
-    sources: [transactions, kyc, cases]
+    sources: [transactions, kyc]
     drivers: [region, cluster_id, channel, risk_tier]
+    calculation_notes:
+      - Review score must be at least 60 with at least 4 near-threshold events.
+      - At least 50% of connected accounts must contribute recent near-threshold activity.
+    lineage:
+      - transactions.csv and kyc.csv -> build governed account and beneficiary edges
+      - connected components -> calculate review score, activity coverage, and qualifying status
+      - qualifying distinct cluster IDs -> count by region-day
     refresh_sla_hours: 1
     minimum_history_days: 28
+    materiality:
+      delta_mode: increase
+      delta_threshold: 2
+      z_score_mode: increase
+      z_score_threshold: 2
+      combination: or
     access:
       aggregate_roles: [compliance_head, regional_investigator]
       detail_roles: [regional_investigator]
@@ -44,13 +87,27 @@ kpis:
   - id: alert_investigation_yield
     name: Alert Investigation Yield
     description: Confirmed or escalated closed investigations divided by all closed investigations.
+    formula: Confirmed or escalated closed investigations divided by all closed investigated cases, multiplied by 100.
     unit: percent
     grain: region_week
     owner: Compliance Effectiveness
     sources: [cases]
     drivers: [region, alert_type, investigator_team, risk_tier]
+    calculation_notes:
+      - Open and in-review cases are excluded from both numerator and denominator.
+      - A zero closed-case denominator returns zero and remains explicitly testable.
+    lineage:
+      - cases.csv -> validate status events and regional case ownership
+      - closed-case filter -> separate confirmed/escalated dispositions from all closed investigations
+      - governed numerator / denominator -> aggregate by region-week
     refresh_sla_hours: 6
     minimum_history_days: 28
+    materiality:
+      delta_mode: absolute
+      delta_threshold: 5
+      z_score_mode: absolute
+      z_score_threshold: 1.5
+      combination: and
     access:
       aggregate_roles: [compliance_head, regional_investigator]
       detail_roles: [regional_investigator]
@@ -58,13 +115,27 @@ kpis:
   - id: case_sla_risk
     name: Case SLA Risk
     description: Open cases due to breach the SLA within the configured horizon.
+    formula: Count open or in-review cases with an SLA due time inside the configured forward horizon.
     unit: count
     grain: region_hour
     owner: AML Investigations
     sources: [cases]
     drivers: [region, investigator_team, case_age_band, priority]
+    calculation_notes:
+      - The governed forward-looking SLA horizon is 24 hours.
+      - Closed cases and cases already outside the defined horizon are excluded.
+    lineage:
+      - cases.csv -> validate case status, SLA due time, priority, and region
+      - open/in-review plus 24-hour horizon filter -> identify cases at SLA risk
+      - qualifying case IDs -> count by region-hour
     refresh_sla_hours: 6
     minimum_history_days: 1
+    materiality:
+      delta_mode: increase
+      delta_threshold: 2
+      z_score_mode: increase
+      z_score_threshold: 2
+      combination: or
     access:
       aggregate_roles: [compliance_head, regional_investigator]
       detail_roles: [regional_investigator]

@@ -37,6 +37,21 @@ class ConfigBundleTests(unittest.TestCase):
         }
         self.assertEqual({kpi.id for kpi in self.bundle.kpis}, expected)
 
+    def test_kpi_contracts_are_judge_explainable(self) -> None:
+        for contract in self.bundle.kpis:
+            self.assertGreater(len(contract.formula), 20)
+            self.assertGreaterEqual(len(contract.calculation_notes), 1)
+            self.assertGreaterEqual(len(contract.lineage), 2)
+            self.assertGreaterEqual(contract.materiality.z_score_threshold, 0)
+            self.assertTrue(contract.access.aggregate_roles)
+
+    def test_three_source_grains_and_cadences_are_governed(self) -> None:
+        sources = self.bundle.settings.source_contracts.model_dump()
+        self.assertEqual(set(sources), {"transactions", "kyc", "cases"})
+        for source in sources.values():
+            self.assertIn("row", source["grain"].lower())
+            self.assertIn("simulated", source["refresh_cadence"].lower())
+
     def test_every_action_monitors_a_known_kpi(self) -> None:
         kpi_ids = {kpi.id for kpi in self.bundle.kpis}
         for action in self.bundle.actions:

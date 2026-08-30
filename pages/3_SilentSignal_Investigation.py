@@ -143,9 +143,16 @@ with tab_evidence:
             f"<div class='ss-evidence'><strong>{evidence['evidence_id']} · {evidence['kind']}</strong><br>{evidence['statement']}</div><br>",
             unsafe_allow_html=True,
         )
-    c1, c2 = st.columns(2)
+    st.markdown("#### Traceable analytical lineage")
+    st.caption(f"Method · {packet['analytical_method']}")
+    st.code(
+        "\n".join(f"{index}. {step}" for index, step in enumerate(packet["lineage"], 1)),
+        language="text",
+    )
+    c1, c2, c3 = st.columns(3)
     c1.metric("Fresh source feeds", f"{runtime.data.source_freshness['status'].eq('Fresh').mean():.0%}")
     c2.metric("Confidence gate", "Pass" if finding["confidence"] >= bundle.settings.analysis.abstention_confidence_below else "Abstain")
+    c3.metric("Lineage steps", len(packet["lineage"]))
     with st.expander("Complete structured evidence packet"):
         st.json(llm_payload(packet), expanded=False)
 

@@ -9,6 +9,7 @@ from src.ui import (
     configure_page,
     format_kpi_value,
     get_demo_runtime,
+    materiality_rule_text,
     render_page_header,
     render_project_banner,
     render_section_header,
@@ -112,11 +113,23 @@ st.dataframe(
 
 with st.expander("KPI semantic contract and lineage"):
     contract = kpi_by_id[selected_kpi]
-    a, b, c = st.columns(3)
+    a, b, c, d = st.columns(4)
     a.markdown(f"**Owner**  \n{contract.owner}")
     b.markdown(f"**Grain**  \n{contract.grain.replace('_', ' ')}")
     c.markdown(f"**Refresh SLA**  \n{contract.refresh_sla_hours:g} hours")
+    d.markdown(f"**Minimum history**  \n{contract.minimum_history_days} days")
     st.markdown(f"**Definition**  \n{contract.description}")
+    st.markdown(f"**Calculation**  \n{contract.formula}")
+    st.markdown(f"**Materiality gate**  \n{materiality_rule_text(contract)}")
     st.markdown(f"**Sources**  \n{', '.join(contract.sources)}")
     st.markdown(f"**Governed drivers**  \n{', '.join(contract.drivers)}")
+    st.markdown("**Calculation constraints**")
+    for note in contract.calculation_notes:
+        st.markdown(f"- {note}")
+    aggregate_roles = ", ".join(role.replace("_", " ").title() for role in contract.access.aggregate_roles)
+    detail_roles = ", ".join(role.replace("_", " ").title() for role in contract.access.detail_roles) or "None"
+    st.markdown(f"**Access policy**  \nAggregate: {aggregate_roles} · Entity detail: {detail_roles}")
+    st.markdown("**Traceable lineage**")
+    for index, step in enumerate(contract.lineage, 1):
+        st.markdown(f"{index}. `{step}`")
 

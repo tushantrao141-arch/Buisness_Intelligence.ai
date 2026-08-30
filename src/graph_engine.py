@@ -22,7 +22,13 @@ class RelationshipResult:
     transaction_clusters: pd.DataFrame
 
 
-def build_relationships(data: DataBundle, weights: dict | None = None) -> RelationshipResult:
+def build_relationships(
+    data: DataBundle,
+    weights: dict | None = None,
+    review_score_threshold: float = 60,
+    minimum_near_events: int = 4,
+    minimum_active_account_coverage: float = 0.50,
+) -> RelationshipResult:
     """Connect accounts through governed shared identifiers and beneficiaries."""
     graph = nx.Graph()
     for row in data.kyc.itertuples(index=False):
@@ -66,13 +72,21 @@ def build_relationships(data: DataBundle, weights: dict | None = None) -> Relati
             edge_types.update(edge["types"])
         recent = component_tx.loc[component_tx["timestamp"].ge(data.as_of - pd.Timedelta(days=14))]
         near_count = int(recent["is_near_threshold"].sum())
+        near_active_account_count = int(
+            recent.loc[recent["is_near_threshold"], "account_id"].nunique()
+        )
+        near_active_account_coverage = near_active_account_count / len(component)
         branch_count = int(recent["branch_id"].nunique())
         risk_score = min(
             100,
             base_score + (len(component) - 1) * account_weight + min(near_count, 16) * near_weight + max(0, branch_count - 1) * branch_weight + len(edge_types) * edge_weight,
         )
         cluster_id = f"SS-{region[:1]}-{cluster_number:03d}"
-        qualifies = risk_score >= 60 and near_count >= 4
+        qualifies = (
+            risk_score >= review_score_threshold
+            and near_count >= minimum_near_events
+            and near_active_account_coverage >= minimum_active_account_coverage
+        )
         cluster_rows.append(
             {
                 "cluster_id": cluster_id,
@@ -80,6 +94,8 @@ def build_relationships(data: DataBundle, weights: dict | None = None) -> Relati
                 "account_count": len(component),
                 "transaction_count": len(recent),
                 "near_threshold_count": near_count,
+                "near_active_account_count": near_active_account_count,
+                "near_active_account_coverage": round(near_active_account_coverage, 3),
                 "branch_count": branch_count,
                 "relationship_types": ", ".join(sorted(edge_types)),
                 "exposure_inr": float(recent["amount_inr"].sum()),
@@ -105,7 +121,7 @@ def build_relationships(data: DataBundle, weights: dict | None = None) -> Relati
     clusters = pd.DataFrame(cluster_rows)
     memberships = pd.DataFrame(membership_rows)
     if clusters.empty:
-        clusters = pd.DataFrame(columns=["cluster_id", "region", "account_count", "transaction_count", "near_threshold_count", "branch_count", "relationship_types", "exposure_inr", "risk_score", "qualifies", "account_ids"])
+        clusters = pd.DataFrame(columns=["cluster_id", "region", "account_count", "transaction_count", "near_threshold_count", "near_active_account_count", "near_active_account_coverage", "branch_count", "relationship_types", "exposure_inr", "risk_score", "qualifies", "account_ids"])
     if memberships.empty:
         memberships = pd.DataFrame(columns=["transaction_id", "cluster_id", "qualifies", "risk_score"])
 
